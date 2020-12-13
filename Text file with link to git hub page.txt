@@ -1,0 +1,16 @@
+Student Name: Killian Pogue
+Student Number: C17388633
+Website: killianpogue.xyz
+//website does ping a response from aws instance IP
+Git hub link: https://github.com/C17388633/Advanced_Web_Mapping_Assignment2
+
+Notes:had issues with getting thenginx container to run
+
+"unknown directive "client" in /etc/nginx/conf.d/headers.conf:7
+nginx: [emerg] unknown directive "client" in /etc/nginx/conf.d/headers.conf:7
+"
+referencing this line "client_max_body_size 10M;" in headers.conf file
+
+This may have to do with Amazon linux 2 instance not being able to install
+certbot the same way as shown in lab 6 step 4.All other containers run fine
+without issues.
