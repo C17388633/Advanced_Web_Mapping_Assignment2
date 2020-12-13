@@ -1,0 +1,19 @@
+
+<!-- templates/home.html -->
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+    {% if user.is_authenticated %}
+        Hi {{ user.username }}!
+        <br><br>
+        <p><a class = "linkbutton" href="{% url 'airports' %}">Find Airports</a></p>
+        <p><a class = "linkbutton" href="{% url 'logout' %}">Log Out</a></p>
+
+    {% else %}
+        <p>You are not logged in</p>
+        <a class = "linkbutton" href="{% url 'login' %}">Log In</a>
+        <a class = "linkbutton" href="{% url 'signup' %}">Sign Up</a>
+    {% endif %}
+{% endblock %}

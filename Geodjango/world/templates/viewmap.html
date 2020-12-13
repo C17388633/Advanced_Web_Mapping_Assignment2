@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load leaflet_tags %}
+{% load static %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load crispy_forms_filters %}
+{# maybe put leaflet css and js here #}
+{# maybe also put block content in #}
+{% block title %}Map Page {% endblock %}
+{% block extra_header %}
+
+    <style>
+        #map {width: 100vw;height: 90vh;}
+    </style>
+
+{% endblock %}
+
+{% block content %}
+
+    {#    <h3>{% trans "Map" %}</h3>#}
+    {#    <div style="height: 100%; width: 100%">#}
+
+    {% leaflet_map "map" callback="window.map_init_basic" %}
+    {#    </div>#}
+
+    <!--
+    <div id="mapid"></div>
+
+    <script>
+        const mymap = L.map('mapid').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(mymap);
+    </script>
+    -->
+
+{% endblock %}
+
+
+{% block extra_footer %}
+
+<script>
+    var HOST = location.protocol + "//" + location.host;
+    var locationMarker;
+    var circle;
+    $("#map").css({
+        "width": "100%",
+        "height": $(document).height() - ($("#header").height() + $("#footer").height() + 45)
+    });
+    function map_init_basic(map, options)
+    {
+        var pos;
+        map.setView([53.5, -8.5], 11);
+        updateLocation(map);
+        map.on('touchstart click dblclick ', function ()
+        {
+            updateLocation(map);
+        });
+    }
+    function updateLocation(map)
+    {
+            navigator.geolocation.getCurrentPosition(function (pos)
+            {
+                setMapToCurrentLocation(map, pos);
+                update_db(pos);
+            },
+            function (err) {
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 30000
+            }
+        );
+    }
+
+    function setMapToCurrentLocation(map, pos) {
+        console.log("In setMapToCurrentLocation.");
+        var myLatLon = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        map.flyTo(myLatLon, 16);
+        if (locationMarker) {
+            map.removeLayer(locationMarker);
+        }
+        locationMarker = L.marker(myLatLon).addTo(map);
+        if (circle) {
+            map.removeLayer(circle);
+        }
+        circle = L.circle(myLatLon,
+        {
+            color: 'blue',
+            fillColor: 'blue',
+            fillOpacity: 0.3,
+            radius: pos.coords.accuracy
+        }).addTo(map);
+        $(".toast-body").html("Found location<br>Lat: " +
+            myLatLon.lat + " Lon: " + myLatLon.lng);
+        $(".toast").toast('show');
+    }
+
+    function update_db(pos) {
+        var locString = pos.coords.longitude + ", " + pos.coords.latitude;
+
+        $.ajax({
+            type: "POST",
+            headers: {'X-CSRFToken': getCookie('csrftoken')
+            },
+            url: HOST + "/updatedb/",
+            data: {
+                point: locString
+            }
+        }).done(function (data, status, xhr) {
+            console.log(data["message"])
+            var originalMsg = $(".toast-body").html();
+            $(".toast-body").html(originalMsg + "<br/>Updated database<br/>" + data["message"]);
+        }).fail(function (xhr, status, error) {
+            console.log(error);
+            var originalMsg = $(".toast-body").html();
+            $(".toast-body").html(originalMsg + "<br/>" + error);
+        }).always(function () {
+            console.log("find_loc_ed finished");
+            $(".toast").toast('show');
+        });
+    }
+
+</script>
+
+{% endblock %}
+
+

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% load leaflet_tags %}
+{% load static %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load crispy_forms_filters %}
+
+{% block title %} Airports {% endblock %}
+{% block extra_header %}
+
+    <style>
+        #map {width: 100vw;height: 90vh;}
+    </style>
+
+
+
+{% endblock %}
+
+{% block content %}
+    <h3> Airports Page </h3>
+    {#    <h3>{% trans "Map" %}</h3>#}
+    {#    <div style="height: 100%; width: 100%">#}
+    <button onclick="getLocation()">Get Closest Airport</button>
+    <p id="test"></p>
+    <br><br>
+
+    {% leaflet_map "map" callback="window.map_init_basic" %}
+
+    <br><br>
+
+    {#    </div>#}
+
+    <!--
+    <div id="mapid"></div>
+
+    <script>
+        const mymap = L.map('mapid').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(mymap);
+    </script>
+    -->
+
+{% endblock %}
+
+{% block extra_footer %}
+
+<script>
+    var HOST = location.protocol + "//" + location.host;
+    var airportMarker;
+    //markers for airports
+    var apMarker;
+    var airports = [
+        ["Dublin", 53.2517, -6.1612, "www.dublinairport.com"],
+        ["Cork", 51.5029, -8.2928, "www.corkairport.com"],
+        ["Shannon", 52.4207, -8.5529, "www.shannonairport.com"],
+        ["Belfast", 54.3927, -6.1257, "www.belfastairport.com"],
+        ["Kerry", 52.1051, -9.3126, "www.kerryairport.com"],
+        ["Waterford", 52.1114, -7.0513, "www.flywaterford.com"],
+        ["Donegal", 55.0239, -8.2028, "www.donegalairport.com"],
+        ["Ireland West", 53.5437, -8.4907, "www.irelandwestairport.com"]
+    ];
+
+    //your location
+    var locationMarker;
+
+    var circle;
+    $("#map").css({
+        "width": "100%",
+        "height": $(document).height() - ($("#header").height() + $("#footer").height() + 45)
+    });
+    function map_init_basic(map, options)
+    {
+        var pos;
+        map.setView([53.5, -8.5], 8);
+        updateLocation(map);
+        map.on('touchstart click dblclick ', function ()
+        {
+            updateLocation(map);
+        });
+    }
+    function updateLocation(map)
+    {
+            navigator.geolocation.getCurrentPosition(function (pos)
+            {
+                setMapToCurrentLocation(map, pos);
+                update_db(pos);
+            },
+            function (err) {
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 30000
+            }
+        );
+    }
+
+    function setMapToCurrentLocation(map, pos) {
+        console.log("In setMapToCurrentLocation.");
+        var myLatLon = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        map.flyTo(myLatLon, 9);
+        if (locationMarker) {
+            map.removeLayer(locationMarker);
+        }
+        locationMarker = L.marker(myLatLon).addTo(map)
+        .bindPopup(' Your Location: <br>' + 'Latitude: ' + pos.coords.latitude + '<br> Longitude: ' + pos.coords.longitude)
+        .openPopup();
+
+
+        //loop through hardcoded airport array list
+        for (var i = 0; i < airports.length; i++)
+        {
+            apLatLon = L.latLng(airports[i][1], airports[i][2]);
+            apMarker = L.marker(apLatLon).addTo(map)
+            .bindPopup(airports[i][0] + ': <br>' + 'Latitude: ' + airports[i][1] + '<br> Longitude: ' + airports[i][2] + '<br> Website: ' + airports[i][3]);
+        }
+
+        //tried to import airport models via views (was not successful)
+        if (airportMarker) {
+            map.removeLayer(airportMarker);
+        }
+        //loop through array of airports
+        {% for ap in object.airport.all %}
+            var aLatLon = L.latLng({{ap.latitude}}, {{ap.longitude}});
+            airportMarker = L.marker(aLatLon).addTo(map)
+            .bindPopup( {{ap.name}}'<br>' + 'Latitude: ' + {{ap.latitude}} + '<br> Longitude: ' + {{ap.longitude}})
+            .openPopup();
+        {% endfor %}
+
+
+        if (circle) {
+            map.removeLayer(circle);
+        }
+        circle = L.circle(myLatLon,
+        {
+            color: 'blue',
+            fillColor: 'blue',
+            fillOpacity: 0.3,
+            radius: pos.coords.accuracy
+        }).addTo(map);
+        $(".toast-body").html("Found location<br>Lat: " +
+            myLatLon.lat + " Lon: " + myLatLon.lng);
+        $(".toast").toast('show');
+    }
+
+    function update_db(pos) {
+        var locString = pos.coords.longitude + ", " + pos.coords.latitude;
+
+        $.ajax({
+            type: "POST",
+            headers: {'X-CSRFToken': getCookie('csrftoken')
+            },
+            url: HOST + "/updatedb/",
+            data: {
+                point: locString
+            }
+        }).done(function (data, status, xhr) {
+            console.log(data["message"])
+            var originalMsg = $(".toast-body").html();
+            $(".toast-body").html(originalMsg + "<br/>Updated database<br/>" + data["message"]);
+        }).fail(function (xhr, status, error) {
+            console.log(error);
+            var originalMsg = $(".toast-body").html();
+            $(".toast-body").html(originalMsg + "<br/>" + error);
+        }).always(function () {
+            console.log("find_loc_ed finished");
+            $(".toast").toast('show');
+        });
+    }
+
+
+    //to get closest airport
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(closestAirport);
+        }else {
+             document.getElementById("test").innerHTML = "Geolocation is not supported by this browser.";
+        }
+    }
+
+    function closestAirport(position) {
+        var shortest;
+        shortest = 1000000;
+        var c_name;
+        var distance = 0;
+        var r=6371; // radius of the earth in km
+
+        for (var j = 0; j < airports.length; j++)
+        {
+            distance = Math.sqrt((Math.pow(position.coords.latitude - airports[j][1], 2)) + (Math.pow(position.coords.longitude - airports[j][2], 2)));
+
+            if (distance < shortest) {
+                shortest = distance;
+                c_name = airports[j][0];
+            }
+
+        }
+        var d=2*r*Math.asin(Math.sqrt(distance));
+        document.getElementById("test").innerHTML = "The closest airport is: " + c_name +
+        "<br> The distance between you and " + c_name + "airport is: " + d + "km";
+    }
+
+</script>
+
+{% endblock %}
